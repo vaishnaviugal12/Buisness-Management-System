@@ -6,8 +6,8 @@ const router = express.Router();
 const authenticateToken = require('../middlewares/authMiddleware');
 
 const VALID_USER = {
-  email: 'vaibhavghiye345@gmail.com',
-  password: 'Vaibhav1234',
+  email: 'vaishnaviugale@gmail.com',
+  password: 'ugale1234',
 };
 
 // ✅ FIXED: Verify token endpoint
