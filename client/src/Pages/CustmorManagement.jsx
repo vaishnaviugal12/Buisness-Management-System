@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { User, Search, Plus, Loader2, AlertCircle } from "lucide-react"; 
-import { useAuth } from "../context/AuthContext"; // ✅ Auth protection
+import { useAuth } from "../context/AuthContext";
+import api from "../api/axios"; // ✅ Axios instance
 
 const Customers = () => {
   const navigate = useNavigate();
-  const { token, logout } = useAuth(); // ✅ Protected route
+  const { token, logout } = useAuth();
   const [search, setSearch] = useState("");
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +17,7 @@ const Customers = () => {
   const [showModal, setShowModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
 
-  // ✅ FETCH ALL CUSTOMERS FROM BACKEND
+  // ✅ FETCH ALL CUSTOMERS
   useEffect(() => {
     fetchCustomers();
   }, []);
@@ -25,25 +26,23 @@ const Customers = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch("http://localhost:5000/api/customers", {
+
+      const response = await api.get("/api/customers", {
         headers: {
-          'Authorization': `Bearer ${token}`, // ✅ Auto token
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          logout(); // ✅ Auto logout
-          return;
-        }
-        throw new Error('Failed to fetch customers');
-      }
-
-      const data = await response.json();
-      setCustomers(data);
+      setCustomers(response.data);
     } catch (err) {
-      setError(err.message);
+      if (err.response) {
+        setError(err.response.data.message || "Failed to fetch customers");
+        if (err.response.status === 401 || err.response.status === 403) {
+          logout();
+        }
+      } else {
+        setError("Network error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -58,34 +57,32 @@ const Customers = () => {
 
     try {
       setAddingCustomer(true);
-      const response = await fetch("http://localhost:5000/api/customers", {
-        method: "POST",
+
+      const response = await api.post("/api/customers", newCustomer, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(newCustomer),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create customer');
-      }
-
-      const createdCustomer = await response.json();
-      setCustomers([createdCustomer, ...customers]); // ✅ Add to top
+      setCustomers([response.data, ...customers]);
       setNewCustomer({ name: "", phone: "" });
       setShowModal(false);
     } catch (err) {
-      alert("Error creating customer: " + err.message);
+      if (err.response) {
+        alert("Error creating customer: " + (err.response.data.message || "Unknown error"));
+      } else {
+        alert("Network error. Please try again.");
+      }
     } finally {
       setAddingCustomer(false);
     }
   };
 
-  // ✅ FILTER CUSTOMERS (Frontend search)
-  const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(search.toLowerCase()) ||
-    customer.contactInfo.phone.includes(search)
+  // ✅ FILTER CUSTOMERS
+  const filteredCustomers = customers.filter(
+    (customer) =>
+      customer.name.toLowerCase().includes(search.toLowerCase()) ||
+      customer.contactInfo?.phone?.includes(search)
   );
 
   if (loading) {
@@ -119,8 +116,6 @@ const Customers = () => {
       )}
 
       <div className="max-w-2xl mx-auto bg-white shadow-xl rounded-xl p-6 relative">
-        
-        {/* Search Input */}
         <div className="flex items-center border rounded-lg px-3 py-2 mb-4 bg-gray-50">
           <Search className="w-5 h-5 text-gray-500 mr-2" />
           <input
@@ -132,7 +127,6 @@ const Customers = () => {
           />
         </div>
 
-        {/* Customer List */}
         {filteredCustomers.length > 0 ? (
           <ul className="space-y-3">
             {filteredCustomers.map((customer) => (
@@ -162,7 +156,6 @@ const Customers = () => {
           <p className="text-center text-gray-500 py-12">No customers found</p>
         )}
 
-        {/* Floating Add New Customer Button */}
         <button
           onClick={() => setShowModal(true)}
           className="fixed bottom-8 right-8 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 hover:scale-110 transition-all"
@@ -176,7 +169,6 @@ const Customers = () => {
         </button>
       </div>
 
-      {/* Modal for Adding Customer */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
           <div className="bg-white p-6 rounded-xl shadow-lg w-80">

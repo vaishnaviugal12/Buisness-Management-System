@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Factory, Search, Plus, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext"; // ✅ Auth protection
+import api from "../api/axios"; // Import your axios instance
 
 const Suppliers = () => {
   const navigate = useNavigate();
@@ -31,25 +32,28 @@ const Suppliers = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch("http://localhost:5000/api/merchants", {
+      
+      const config = {
         headers: {
-          'Authorization': `Bearer ${token}`, // ✅ Auto token
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-      });
+      };
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          logout(); // ✅ Auto logout
-          return;
-        }
-        throw new Error('Failed to fetch suppliers');
+      const response = await api.get("/api/merchants", config);
+
+      if (response.status === 401 || response.status === 403) {
+        logout(); // ✅ Auto logout
+        return;
       }
 
-      const data = await response.json();
+      const data = response.data;
       setSuppliers(data);
     } catch (err) {
-      setError(err.message);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+        return;
+      }
+      setError(err.response?.data?.message || 'Failed to fetch suppliers');
     } finally {
       setLoading(false);
     }
@@ -64,25 +68,22 @@ const Suppliers = () => {
 
     try {
       setAddingSupplier(true);
-      const response = await fetch("http://localhost:5000/api/merchants", {
-        method: "POST",
+      
+      const config = {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newSupplier),
-      });
+      };
 
-      if (!response.ok) {
-        throw new Error('Failed to create supplier');
-      }
-
-      const createdSupplier = await response.json();
+      const response = await api.post("/api/merchants", newSupplier, config);
+      const createdSupplier = response.data;
+      
       setSuppliers([createdSupplier, ...suppliers]); // ✅ Add to top
       setNewSupplier({ name: "", phone: "", number: "", bankAccount: "", ifscCode: "" });
       setShowModal(false);
     } catch (err) {
-      alert("Error creating supplier: " + err.message);
+      alert("Error creating supplier: " + (err.response?.data?.message || err.message));
     } finally {
       setAddingSupplier(false);
     }

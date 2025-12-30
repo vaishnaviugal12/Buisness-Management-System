@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ArrowLeft, Plus, Loader2, Edit3 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import api from "../api/axios"; // Import your axios instance
 
 const BillDetailsMerchant = () => {
   const { name, invoice } = useParams();
@@ -34,29 +35,45 @@ const BillDetailsMerchant = () => {
     try {
       setLoading(true);
 
+      // Add authorization header
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
+
       // Fetch invoice details
-      const invoiceRes = await fetch(
-        `http://localhost:5000/api/merchant-invoices/${invoice}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const invoiceRes = await api.get(
+        `/api/merchant-invoices/${invoice}`,
+        config
       );
-      if (!invoiceRes.ok) throw new Error("Invoice not found");
-      setInvoiceData(await invoiceRes.json());
+      setInvoiceData(invoiceRes.data);
 
-      // Fetch payments
-      const paymentsRes = await fetch(
-        `http://localhost:5000/api/merchant-payments/invoice/${invoice}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (paymentsRes.ok) setPaidHistory(await paymentsRes.json());
+      try {
+        // Fetch payments
+        const paymentsRes = await api.get(
+          `/api/merchant-payments/invoice/${invoice}`,
+          config
+        );
+        setPaidHistory(paymentsRes.data);
+      } catch (err) {
+        console.log("No payments found or error fetching payments");
+      }
 
-      // Fetch purchase items
-      const itemsRes = await fetch(
-        `http://localhost:5000/api/merchant-invoice-items/invoice/${invoice}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (itemsRes.ok) setPurchaseHistory(await itemsRes.json());
-    } catch {
-      logout();
+      try {
+        // Fetch purchase items
+        const itemsRes = await api.get(
+          `/api/merchant-invoice-items/invoice/${invoice}`,
+          config
+        );
+        setPurchaseHistory(itemsRes.data);
+      } catch (err) {
+        console.log("No purchase items found or error fetching items");
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+      } else {
+        alert("Failed to fetch bill data");
+      }
     } finally {
       setLoading(false);
     }
@@ -107,6 +124,13 @@ const BillDetailsMerchant = () => {
     try {
       setSavingEntry(true);
 
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
       if (modalType === "paid") {
         const payload = {
           paymentDate: entry.date,
@@ -114,18 +138,20 @@ const BillDetailsMerchant = () => {
           note: entry.description,
           method: entry.method,
         };
-        const url = editId
-          ? `http://localhost:5000/api/merchant-payments/${editId}`
-          : "http://localhost:5000/api/merchant-payments";
-
-        await fetch(url, {
-          method: editId ? "PUT" : "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(editId ? payload : { ...payload, merchantInvoice: invoice }),
-        });
+        
+        if (editId) {
+          await api.put(
+            `/api/merchant-payments/${editId}`,
+            payload,
+            config
+          );
+        } else {
+          await api.post(
+            `/api/merchant-payments`,
+            { ...payload, merchantInvoice: invoice },
+            config
+          );
+        }
       }
 
       if (modalType === "purchase") {
@@ -135,23 +161,27 @@ const BillDetailsMerchant = () => {
           amount: amountNum,
           description: entry.description,
         };
-        const url = editId
-          ? `http://localhost:5000/api/merchant-invoice-items/${editId}`
-          : "http://localhost:5000/api/merchant-invoice-items";
-
-        await fetch(url, {
-          method: editId ? "PUT" : "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(editId ? payload : { ...payload, merchantInvoice: invoice }),
-        });
+        
+        if (editId) {
+          await api.put(
+            `/api/merchant-invoice-items/${editId}`,
+            payload,
+            config
+          );
+        } else {
+          await api.post(
+            `/api/merchant-invoice-items`,
+            { ...payload, merchantInvoice: invoice },
+            config
+          );
+        }
       }
 
       await fetchBillData();
       setShowModal(false);
       setEditId(null);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to save entry");
     } finally {
       setSavingEntry(false);
     }
@@ -233,8 +263,8 @@ const BillDetailsMerchant = () => {
           </p>
           {invoiceData && (
             <p className="text-gray-600 mt-1">
-  Bill Number: <span className="font-semibold">{invoiceData?.invoice?.billNumber}</span>
-</p>
+              Bill Number: <span className="font-semibold">{invoiceData?.invoice?.billNumber}</span>
+            </p>
           )}
         </div>
 

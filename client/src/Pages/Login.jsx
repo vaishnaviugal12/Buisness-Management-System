@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { User, Lock } from "lucide-react"; // Icons
+import api from "../api/axios"; // Import the Axios instance
 
 function Login() {
   const [username, setUsername] = useState("");
@@ -12,32 +13,23 @@ function Login() {
     e.preventDefault();
     if (username && password) {
       try {
-        // Server is configured to run on port 5000 (see server/.env). Update URL accordingly.
-        const response = await fetch("http://localhost:5000/api/auth/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: username,
-            password: password,
-          }),
+        // Use Axios instance instead of fetch
+        const response = await api.post("/api/auth/login", {
+          email: username,
+          password: password,
         });
 
-        const data = await response.json();
-
-        if (response.ok) {
-          // Save token (you can use localStorage or any state management)
-          localStorage.setItem("token", data.token);
-          setError(null);
-          navigate("/select");
-
-        } else {
-          // Login failed, show error message
-          setError(data.message || "Login failed");
-        }
+        // Axios automatically throws error for non-2xx responses, so this is ok
+        localStorage.setItem("token", response.data.token);
+        setError(null);
+        navigate("/select");
       } catch (err) {
-        setError("Network error. Please try again.");
+        // Axios stores server error in err.response
+        if (err.response) {
+          setError(err.response.data.message || "Login failed");
+        } else {
+          setError("Network error. Please try again.");
+        }
       }
     } else {
       setError("Enter valid credentials");

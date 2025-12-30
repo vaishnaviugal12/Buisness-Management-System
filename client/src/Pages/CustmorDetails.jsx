@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import api from "../api/axios"; // Import your axios instance
 
 const CustomerDetails = () => {
   const { name } = useParams();
@@ -47,16 +48,16 @@ const CustomerDetails = () => {
     try {
       setLoading(true);
 
-      const custRes = await fetch("http://localhost:5000/api/customers", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Add authorization header
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
 
-      if (!custRes.ok) {
-        if (custRes.status === 401 || custRes.status === 403) return logout();
-        throw new Error("Failed to fetch customers");
-      }
+      const custRes = await api.get("/api/customers", config);
 
-      const customers = await custRes.json();
+      if (custRes.status === 401 || custRes.status === 403) return logout();
+
+      const customers = custRes.data;
 
       const foundCustomer = customers.find(
         (c) => c.name.toLowerCase() === decodedName.toLowerCase()
@@ -65,10 +66,8 @@ const CustomerDetails = () => {
 
       setCustomer(foundCustomer);
 
-      const invRes = await fetch("http://localhost:5000/api/invoices", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const invoices = await invRes.json();
+      const invRes = await api.get("/api/invoices", config);
+      const invoices = invRes.data;
 
       const customerInvoices = invoices.filter(
         (inv) => inv.customer && inv.customer._id === foundCustomer._id
@@ -125,24 +124,23 @@ const CustomerDetails = () => {
     try {
       setSavingInfo(true);
 
-      const res = await fetch(
-        `http://localhost:5000/api/customers/${customer._id}`,
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      const res = await api.put(
+        `/api/customers/${customer._id}`,
         {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: customer.name,
-            phone: customer.contactInfo?.phone,
-          }),
-        }
+          name: customer.name,
+          phone: customer.contactInfo?.phone,
+        },
+        config
       );
 
-      if (!res.ok) throw new Error("Failed to update customer");
-
-      const updated = await res.json();
+      const updated = res.data;
       setCustomer(updated);
       setIsEditing(false);
     } catch (err) {
@@ -163,19 +161,17 @@ const CustomerDetails = () => {
     try {
       setDeletingInvoiceId(invoiceId);
       
-      const res = await fetch(`http://localhost:5000/api/invoices/${invoiceId}`, {
-        method: "DELETE",
+      const config = {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      };
 
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          logout();
-          return;
-        }
-        throw new Error("Failed to delete invoice");
+      const res = await api.delete(`/api/invoices/${invoiceId}`, config);
+
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        return;
       }
 
       fetchCustomerData();
@@ -211,21 +207,16 @@ const CustomerDetails = () => {
 
       console.log("Sending invoice data:", invoiceData);
       
-      const response = await fetch("http://localhost:5000/api/invoices", {
-        method: "POST",
+      const config = {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(invoiceData),
-      });
+      };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create invoice: ${errorText}`);
-      }
+      const response = await api.post("/api/invoices", invoiceData, config);
 
-      const createdInvoice = await response.json();
+      const createdInvoice = response.data;
       console.log("Created invoice response:", createdInvoice);
 
       // Check if dueAmount is correct in response

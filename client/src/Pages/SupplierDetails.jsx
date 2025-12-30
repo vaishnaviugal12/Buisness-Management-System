@@ -10,11 +10,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import api from "../api/axios"; // Import your axios instance
 
 const SupplierDetails = () => {
   const { name } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
   const decodedName = decodeURIComponent(name);
 
   /* ================= SUPPLIER INFO ================= */
@@ -45,10 +46,13 @@ const SupplierDetails = () => {
     try {
       setLoading(true);
 
-      const suppliersRes = await fetch("http://localhost:5000/api/merchants", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const suppliers = await suppliersRes.json();
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
+
+      // Fetch suppliers
+      const suppliersRes = await api.get("/api/merchants", config);
+      const suppliers = suppliersRes.data;
 
       const foundSupplier = suppliers.find(
         (s) => s.name.toLowerCase() === decodedName.toLowerCase()
@@ -56,11 +60,9 @@ const SupplierDetails = () => {
       if (!foundSupplier) throw new Error("Supplier not found");
       setSupplierInfo(foundSupplier);
 
-      const invoicesRes = await fetch(
-        "http://localhost:5000/api/merchant-invoices",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const invoices = await invoicesRes.json();
+      // Fetch invoices
+      const invoicesRes = await api.get("/api/merchant-invoices", config);
+      const invoices = invoicesRes.data;
 
       const supplierInvoices = invoices.filter(
         (inv) => inv.merchant && inv.merchant._id === foundSupplier._id
@@ -74,6 +76,9 @@ const SupplierDetails = () => {
       setPaidBills(supplierInvoices.filter((b) => b.status === "PAID"));
     } catch (err) {
       console.error(err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -102,27 +107,29 @@ const SupplierDetails = () => {
     try {
       setSavingBill(true);
 
-      await fetch("http://localhost:5000/api/merchant-invoices", {
-        method: "POST",
+      const config = {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          merchant: supplierInfo._id,
-          billNumber: newBill.billNumber,
-          totalAmount: Number(newBill.amount),
-          paidAmount: 0,
-          dueAmount: Number(newBill.amount),
-          billDate: newBill.billDate,
-        }),
-      });
+      };
+
+      const billData = {
+        merchant: supplierInfo._id,
+        billNumber: newBill.billNumber,
+        totalAmount: Number(newBill.amount),
+        paidAmount: 0,
+        dueAmount: Number(newBill.amount),
+        billDate: newBill.billDate,
+      };
+
+      await api.post("/api/merchant-invoices", billData, config);
 
       setShowBillModal(false);
       setNewBill({ billNumber: "", billDate: new Date().toISOString().split("T")[0], amount: "" });
       fetchSupplierData();
     } catch (err) {
-      alert(err.message);
+      alert(err.response?.data?.message || err.message);
     } finally {
       setSavingBill(false);
     }
@@ -136,20 +143,25 @@ const SupplierDetails = () => {
   const handleSaveInfo = async () => {
     try {
       setSavingInfo(true);
-      const res = await fetch(
-        `http://localhost:5000/api/merchants/${supplierInfo._id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(supplierInfo),
-        }
+      
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      const res = await api.put(
+        `/api/merchants/${supplierInfo._id}`,
+        supplierInfo,
+        config
       );
-      const updated = await res.json();
+      
+      const updated = res.data;
       setSupplierInfo(updated);
       setIsEditing(false);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update supplier");
     } finally {
       setSavingInfo(false);
     }
@@ -159,20 +171,18 @@ const SupplierDetails = () => {
     if (!window.confirm("Are you sure you want to delete this invoice?")) return;
 
     try {
-      const res = await fetch(
-        `http://localhost:5000/api/merchant-invoices/${invoiceId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+      };
 
-      if (!res.ok) throw new Error("Failed to delete invoice");
+      await api.delete(`/api/merchant-invoices/${invoiceId}`, config);
+      
+      // Update local state
       setPendingBills((prev) => prev.filter((b) => b._id !== invoiceId));
       setPaidBills((prev) => prev.filter((b) => b._id !== invoiceId));
     } catch (err) {
       console.error(err);
-      alert("Failed to delete invoice");
+      alert(err.response?.data?.message || "Failed to delete invoice");
     }
   };
 
@@ -408,4 +418,3 @@ const SupplierDetails = () => {
 };
 
 export default SupplierDetails;
-

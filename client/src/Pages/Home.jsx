@@ -1,39 +1,44 @@
-// src/Pages/Home.jsx - FULLY CONNECTED TO BACKEND
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Users, Truck, BarChart2, LogOut, Loader2 } from "lucide-react";
-import { useAuth } from "../context/AuthContext"; // ✅ Auth protection
+import { Users, Truck, BarChart2, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import Navbar from "./Navbar";
+import api from "../api/axios";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { token, logout } = useAuth(); // ✅ Get token from context
-  const [dashboardData, setDashboardData] = useState(null);
+  const { token, logout } = useAuth();
+  const [dashboardData, setDashboardData] = useState({
+    customers: 0,
+    totalReceivables: 0,
+    overdueInvoices: 0
+  });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // ✅ FETCH LIVE DASHBOARD DATA
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:5000/api/reports/dashboard", {
+
+        const response = await api.get("/api/reports/dashboard", {
           headers: {
-            'Authorization': `Bearer ${token}`, // ✅ Auto token
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-
-        const data = await response.json();
-        setDashboardData(data);
+        setDashboardData(response.data);
       } catch (err) {
-        setError(err.message);
-        if (err.message.includes('401') || err.message.includes('403')) {
-          logout(); // ✅ Auto logout on auth error
+        console.error("Dashboard fetch error:", err);
+        // Use default data if API fails
+        setDashboardData({
+          customers: 0,
+          totalReceivables: 0,
+          overdueInvoices: 0
+        });
+        
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          logout();
         }
       } finally {
         setLoading(false);
@@ -46,11 +51,14 @@ export default function Home() {
   }, [token, logout]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
-      <Navbar />
+    <div className="min-h-screen flex flex-col bg-gradient-to-r from-blue-50 via-white to-blue-50 font-sans">
+      {/* Fixed Navbar at top */}
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <Navbar />
+      </div>
 
-      {/* Hero Section with LIVE STATS */}
-      <main className="flex-1 flex flex-col justify-center items-center text-center px-6 py-12 bg-gradient-to-r from-blue-50 via-white to-blue-50">
+      {/* Main Content - Adjusted for Navbar height */}
+      <main className="flex-1 pt-24 flex flex-col justify-center items-center text-center px-6 py-12">
         <h2 className="text-3xl md:text-5xl font-extrabold text-blue-900 leading-snug">
           Welcome 👋 <br /> Manage Your Business with Ease
         </h2>
@@ -59,38 +67,10 @@ export default function Home() {
           Easy to use, designed for business owners.
         </p>
 
-        {/* ✅ LIVE DASHBOARD STATS
-        {loading ? (
-          <div className="mt-12 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          </div>
-        ) : error ? (
-          <div className="mt-12 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            {error}
-          </div>
-        ) : dashboardData ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 w-full max-w-4xl bg-white/50 backdrop-blur-sm rounded-2xl p-8 shadow-lg">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{dashboardData.customers || 0}</div>
-              <div className="text-gray-600 mt-1">Active Customers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">
-                ₹{dashboardData.totalReceivables?.toLocaleString() || 0}
-              </div>
-              <div className="text-gray-600 mt-1">Total Receivables</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">{dashboardData.overdueInvoices || 0}</div>
-              <div className="text-gray-600 mt-1">Overdue Invoices</div>
-            </div>
-          </div>
-        ) : null} */}
+        
 
-        {/* Cards Section */}
+        {/* Cards Section - Exact same as before */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 w-full max-w-5xl">
-          
-          {/* Customer Management */}
           <div
             onClick={() => navigate("/customers")}
             className="cursor-pointer bg-white rounded-2xl shadow-md p-8 border hover:shadow-xl hover:scale-105 transition group"
@@ -106,7 +86,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Supplier Management */}
           <div
             onClick={() => navigate("/suppliers")}
             className="cursor-pointer bg-white rounded-2xl shadow-md p-8 border hover:shadow-xl hover:scale-105 transition group"
@@ -122,7 +101,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Reports */}
           <div
             onClick={() => navigate("/reports")}
             className="cursor-pointer bg-white rounded-2xl shadow-md p-8 border hover:shadow-xl hover:scale-105 transition group"
@@ -140,7 +118,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="bg-blue-800 text-white text-center py-4 text-sm md:text-base">
         <p>© 2025 Jay GAJANAN Hydraulic Firm. All Rights Reserved.</p>
       </footer>

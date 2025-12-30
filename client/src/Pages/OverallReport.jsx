@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/axios"; // Import your axios instance
 
 // Improved Row component with better spacing and typography
 const Row = ({ label, value, highlight, icon }) => (
@@ -52,15 +52,19 @@ export default function OverallReport() {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/reports/overall", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+    const config = {
+      headers: { 
+        Authorization: `Bearer ${token}` 
+      },
+    };
+
+    api.get("/api/reports/overall", config)
       .then(res => {
         setReport(res.data);
         setLoading(false);
       })
-      .catch(() => {
+      .catch(err => {
+        console.error("Failed to load report:", err);
         alert("Failed to load report");
         setLoading(false);
       });

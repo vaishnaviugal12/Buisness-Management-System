@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ArrowLeft, PlusCircle, Edit3, Loader2, AlertCircle, Trash2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import api from "../api/axios"; // Import your axios instance
 
 const BillDetailsCustomer = () => {
   const { id } = useParams(); // invoice id
@@ -33,26 +34,37 @@ const BillDetailsCustomer = () => {
     try {
       setLoading(true);
 
-      const invRes = await fetch(`http://localhost:5000/api/invoices/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!invRes.ok) throw new Error();
-      const invData = await invRes.json();
-      setInvoice(invData.invoice);
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
 
-      const itemsRes = await fetch(
-        `http://localhost:5000/api/invoice-items/invoice/${id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setPurchaseHistory(itemsRes.ok ? await itemsRes.json() : []);
+      // Fetch invoice details
+      const invRes = await api.get(`/api/invoices/${id}`, config);
+      setInvoice(invRes.data.invoice);
 
-      const payRes = await fetch(
-        `http://localhost:5000/api/payments/invoice/${id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setPaymentHistory(payRes.ok ? await payRes.json() : []);
-    } catch {
-      logout();
+      try {
+        // Fetch purchase items
+        const itemsRes = await api.get(`/api/invoice-items/invoice/${id}`, config);
+        setPurchaseHistory(itemsRes.data);
+      } catch (err) {
+        console.log("No purchase items found or error fetching items");
+        setPurchaseHistory([]);
+      }
+
+      try {
+        // Fetch payments
+        const payRes = await api.get(`/api/payments/invoice/${id}`, config);
+        setPaymentHistory(payRes.data);
+      } catch (err) {
+        console.log("No payments found or error fetching payments");
+        setPaymentHistory([]);
+      }
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+      } else {
+        alert("Failed to fetch bill data");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,18 +90,14 @@ const BillDetailsCustomer = () => {
         status: status
       };
 
-      const response = await fetch(`http://localhost:5000/api/invoices/${id}`, {
-        method: "PUT",
+      const config = {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updatedInvoice),
-      });
+      };
 
-      if (!response.ok) {
-        throw new Error("Failed to update invoice");
-      }
+      const response = await api.put(`/api/invoices/${id}`, updatedInvoice, config);
 
       // Update local state
       setInvoice(prev => ({
@@ -145,16 +153,15 @@ const BillDetailsCustomer = () => {
     }
 
     try {
-      const endpoint = type === "purchase" 
-        ? `http://localhost:5000/api/invoice-items/${itemId}`
-        : `http://localhost:5000/api/payments/${itemId}`;
-      
-      const res = await fetch(endpoint, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const config = {
+        headers: { Authorization: `Bearer ${token}` }
+      };
 
-      if (!res.ok) throw new Error(`Failed to delete ${type}`);
+      if (type === "purchase") {
+        await api.delete(`/api/invoice-items/${itemId}`, config);
+      } else {
+        await api.delete(`/api/payments/${itemId}`, config);
+      }
 
       // Refresh data
       fetchBillData();
@@ -171,6 +178,13 @@ const BillDetailsCustomer = () => {
     try {
       setSaving(true);
 
+      const config = {
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          "Content-Type": "application/json" 
+        },
+      };
+
       if (modalType === "purchase") {
         const payload = { 
           invoice: id, 
@@ -179,22 +193,12 @@ const BillDetailsCustomer = () => {
           amount, 
           description: entry.description 
         };
-        const url = editId
-          ? `http://localhost:5000/api/invoice-items/${editId}`
-          : "http://localhost:5000/api/invoice-items";
         
-        const method = editId ? "PUT" : "POST";
-        
-        const res = await fetch(url, {
-          method,
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json" 
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) throw new Error("Failed to save item");
+        if (editId) {
+          await api.put(`/api/invoice-items/${editId}`, payload, config);
+        } else {
+          await api.post(`/api/invoice-items`, payload, config);
+        }
       }
 
       if (modalType === "paid") {
@@ -205,22 +209,12 @@ const BillDetailsCustomer = () => {
           method: entry.method, 
           note: entry.description 
         };
-        const url = editId
-          ? `http://localhost:5000/api/payments/${editId}`
-          : "http://localhost:5000/api/payments";
         
-        const method = editId ? "PUT" : "POST";
-        
-        const res = await fetch(url, {
-          method,
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json" 
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) throw new Error("Failed to save payment");
+        if (editId) {
+          await api.put(`/api/payments/${editId}`, payload, config);
+        } else {
+          await api.post(`/api/payments`, payload, config);
+        }
       }
 
       // Refresh all data
@@ -228,7 +222,7 @@ const BillDetailsCustomer = () => {
       setShowModal(false);
       setEditId(null);
     } catch (error) {
-      alert(error.message || "Save failed");
+      alert(error.response?.data?.message || "Save failed");
     } finally {
       setSaving(false);
     }
