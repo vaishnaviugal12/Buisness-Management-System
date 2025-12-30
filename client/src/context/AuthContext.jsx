@@ -1,19 +1,20 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import api from "../api/axios"; // Axios instance with VITE_API_URL
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(localStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -26,20 +27,19 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        // Optional: Verify token with backend (ping /api/auth/verify)
-        const response = await fetch('http://localhost:5000/api/auth/verify', {
+        const response = await api.get("/api/auth/verify", {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
         });
 
-        if (!response.ok) {
-          localStorage.removeItem('token');
+        if (!response.data.valid) {
+          localStorage.removeItem("token");
           setToken(null);
         }
       } catch (error) {
-        localStorage.removeItem('token');
+        // Network error or invalid token
+        localStorage.removeItem("token");
         setToken(null);
       } finally {
         setLoading(false);
@@ -47,17 +47,17 @@ export const AuthProvider = ({ children }) => {
     };
 
     verifyToken();
-  }, []);
+  }, [token]);
 
   const login = (newToken) => {
-    localStorage.setItem('token', newToken);
+    localStorage.setItem("token", newToken);
     setToken(newToken);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
     setToken(null);
-    navigate('/');
+    navigate("/");
   };
 
   const value = {
@@ -67,9 +67,5 @@ export const AuthProvider = ({ children }) => {
     loading,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

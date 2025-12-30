@@ -1,38 +1,40 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
-import { User, Lock } from "lucide-react"; // Icons
-import api from "../api/axios"; // Import the Axios instance
+import { User, Lock } from "lucide-react";
+import api from "../api/axios"; // Axios instance using VITE_API_URL
+import { useAuth } from "../context/AuthContext";
 
 function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { login } = useAuth(); // use AuthContext
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (username && password) {
-      try {
-        // Use Axios instance instead of fetch
-        const response = await api.post("/api/auth/login", {
-          email: username,
-          password: password,
-        });
 
-        // Axios automatically throws error for non-2xx responses, so this is ok
-        localStorage.setItem("token", response.data.token);
-        setError(null);
-        navigate("/select");
-      } catch (err) {
-        // Axios stores server error in err.response
-        if (err.response) {
-          setError(err.response.data.message || "Login failed");
-        } else {
-          setError("Network error. Please try again.");
-        }
-      }
-    } else {
+    if (!username || !password) {
       setError("Enter valid credentials");
+      return;
+    }
+
+    try {
+      const response = await api.post("/api/auth/login", {
+        email: username,
+        password: password,
+      });
+
+      const token = response.data.token;
+      login(token); // store token in context + localStorage
+      setError(null);
+      navigate("/select");
+    } catch (err) {
+      if (err.response) {
+        setError(err.response.data.message || "Login failed");
+      } else {
+        setError("Network error. Please check your connection.");
+      }
     }
   };
 
@@ -44,7 +46,6 @@ function Login() {
         </h2>
 
         <form onSubmit={handleLogin} className="space-y-5">
-          {/* Username */}
           <div className="relative">
             <User className="absolute left-3 top-3 text-gray-500" size={20} />
             <input
@@ -53,10 +54,10 @@ function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-gray-500 focus:outline-none"
+              autoComplete="username"
             />
           </div>
 
-          {/* Password */}
           <div className="relative">
             <Lock className="absolute left-3 top-3 text-gray-500" size={20} />
             <input
@@ -65,15 +66,14 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-gray-500 focus:outline-none"
+              autoComplete="current-password"
             />
           </div>
 
-          {/* Error message */}
           {error && (
             <p className="text-red-600 text-center font-semibold">{error}</p>
           )}
 
-          {/* Login Button */}
           <button
             type="submit"
             className="w-full bg-black text-white py-2 rounded-lg font-semibold hover:bg-gray-800 transition duration-300 shadow-md"
